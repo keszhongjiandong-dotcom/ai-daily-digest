@@ -1,46 +1,45 @@
 name: AI Daily Digest
 
 on:
+  workflow_dispatch:
   schedule:
-    # GitHub cron as last-resort fallback (unreliable for new repos).
-    # Primary trigger: cron-job.org calls the GitHub API at 08:05 Beijing time.
-    - cron: '0 2 * * *'  # UTC 02:00 = Beijing 10:00, far-fallback only
-  workflow_dispatch: # Allow manual trigger (also used by cron-job.org)
+    - cron: '0 2 * * *'
 
 jobs:
-  generate:
+  digest:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python
+      
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
-
+          python-version: '3.10'
+      
+      - name: Cache pip packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      
       - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Generate daily digest
+        run: |
+          pip install -r requirements.txt
+      
+      - name: Run Daily Digest
         env:
-          API_KEY: ${{ secrets.API_KEY }}
-          API_BASE_URL: ${{ vars.API_BASE_URL || 'https://api.deepseek.com' }}
-          API_MODEL: ${{ vars.API_MODEL || 'deepseek-chat' }}
-        run: cd scripts && python main.py
-
+          OPENAI_API_KEY: ${{ secrets.API_KEY }}
+          OPENAI_BASE_URL: ${{ secrets.API_BASE_URL }}
+          OPENAI_MODEL: ${{ secrets.API_MODEL }}
+        run: |
+          python scripts/main.py
+      
       - name: Commit and push
         run: |
-          git config user.name "AI Daily Bot"
-          git config user.email "bot@github.com"
-          git add daily/ data/
-          if git diff --staged --quiet; then
-            echo "No changes to commit"
-          else
-            DATE=$(TZ=Asia/Shanghai date +"%Y-%m-%d")
-            git commit -m "📰 Daily digest for ${DATE}"
-            git pull --rebase
-            git push
-          fi
+          git config user.name github-actions[bot]
+          git config user.email github-actions[bot]@users.noreply.github.com
+          git add -A
+          git diff --quiet && git diff --staged --quiet || git commit -m "chore: daily digest update"
+          git push
