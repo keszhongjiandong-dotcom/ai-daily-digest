@@ -1,5 +1,8 @@
 name: 吉尔吉斯新闻日报
 
+permissions:
+  contents: write
+
 on:
   workflow_dispatch:
   schedule:
